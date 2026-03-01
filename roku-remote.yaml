@@ -1,11 +1,13 @@
-# ESPHome Roku Remote
+# ESPHome Roku Remote - Dual Device
 # Hardware: ESP32-S3 N16R8 Development Board
 # Display: 2.4" TFT LCD Shield with ST7789V driver (240x320) + XPT2046 touchscreen
+# Controls: TCL Roku TV + Roku Streaming Stick
 
 substitutions:
   name: roku-remote
   friendly_name: "Roku Remote"
-  roku_ip: "192.168.4.39"  # Living Room Roku Soundbar
+  tv_ip: "192.168.4.253"      # Living Room TV (TCL)
+  stick_ip: "192.168.4.179"   # Living Room Stick
 
 esphome:
   name: ${name}
@@ -18,22 +20,14 @@ esp32:
     type: arduino
   flash_size: 16MB
 
-# PSRAM for display buffer
 psram:
   mode: octal
   speed: 80MHz
 
-# WiFi - update with your credentials
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
-
-  # Static IP recommended for stability
-  # manual_ip:
-  #   static_ip: 192.168.4.XXX
-  #   gateway: 192.168.4.1
-  #   subnet: 255.255.252.0
 
 logger:
   level: INFO
@@ -46,12 +40,18 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
-# SPI for display and touchscreen
 spi:
   - id: display_spi
     clk_pin: GPIO18
     mosi_pin: GPIO23
     miso_pin: GPIO19
+
+# Global for device selection (false = TV, true = Stick)
+globals:
+  - id: use_stick
+    type: bool
+    restore_value: false
+    initial_value: "false"
 
 # ST7789V 2.4" Display (240x320)
 display:
@@ -70,54 +70,71 @@ display:
     auto_clear_enabled: false
     
     lambda: |-
-      // Remote UI layout
-      it.filled_rectangle(0, 0, 240, 40, Color(0x1E, 0x90, 0xFF));  // Blue header
-      it.printf(120, 20, id(font_medium), TextAlign::CENTER, Color::WHITE, "Roku Remote");
+      // Header with device indicator
+      auto header_color = id(use_stick) ? Color(0x9C, 0x27, 0xB0) : Color(0x1E, 0x90, 0xFF);
+      it.filled_rectangle(0, 0, 240, 35, header_color);
+      it.printf(120, 18, id(font_medium), TextAlign::CENTER, Color::WHITE, "Roku Remote");
       
-      // Navigation buttons
-      int btn_size = 60;
-      int btn_x = 90;
-      int btn_y = 80;
+      // Device toggle indicator
+      it.printf(120, 50, id(font_small), TextAlign::CENTER, Color::WHITE, 
+                id(use_stick) ? "Stick" : "TV");
       
-      // Up button
-      it.rectangle(btn_x, btn_y, btn_size, btn_size, Color::WHITE);
-      it.printf(btn_x + 30, btn_y + 30, id(font_large), TextAlign::CENTER, Color::WHITE, "^");
+      // Navigation D-pad
+      int btn_size = 55;
+      int cx = 120;
+      int cy = 130;
       
-      // Down button
-      btn_y = 200;
-      it.rectangle(btn_x, btn_y, btn_size, btn_size, Color::WHITE);
-      it.printf(btn_x + 30, btn_y + 30, id(font_large), TextAlign::CENTER, Color::WHITE, "v");
+      // Up
+      it.rectangle(cx - btn_size/2, cy - btn_size - 5, btn_size, btn_size, Color::WHITE);
+      it.printf(cx, cy - btn_size/2 - 5, id(font_large), TextAlign::CENTER, Color::WHITE, "^");
       
-      // Left button
-      btn_x = 30;
-      btn_y = 140;
-      it.rectangle(btn_x, btn_y, btn_size, btn_size, Color::WHITE);
-      it.printf(btn_x + 30, btn_y + 30, id(font_large), TextAlign::CENTER, Color::WHITE, "<");
+      // Down
+      it.rectangle(cx - btn_size/2, cy + 5, btn_size, btn_size, Color::WHITE);
+      it.printf(cx, cy + btn_size/2 + 5, id(font_large), TextAlign::CENTER, Color::WHITE, "v");
       
-      // Right button
-      btn_x = 150;
-      it.rectangle(btn_x, btn_y, btn_size, btn_size, Color::WHITE);
-      it.printf(btn_x + 30, btn_y + 30, id(font_large), TextAlign::CENTER, Color::WHITE, ">");
+      // Left
+      it.rectangle(cx - btn_size - 5, cy - btn_size/2, btn_size, btn_size, Color::WHITE);
+      it.printf(cx - btn_size/2 - 5, cy, id(font_large), TextAlign::CENTER, Color::WHITE, "<");
       
-      // Select button (center)
-      btn_x = 90;
-      btn_y = 140;
-      it.rectangle(btn_x, btn_y, btn_size, btn_size, Color::WHITE);
-      it.filled_circle(btn_x + 30, btn_y + 30, 15, Color::WHITE);
+      // Right
+      it.rectangle(cx + 5, cy - btn_size/2, btn_size, btn_size, Color::WHITE);
+      it.printf(cx + btn_size/2 + 5, cy, id(font_large), TextAlign::CENTER, Color::WHITE, ">");
       
-      // Bottom row buttons
-      int bottom_y = 280;
-      it.rectangle(10, bottom_y, 50, 30, Color::WHITE);
-      it.printf(35, bottom_y + 15, id(font_small), TextAlign::CENTER, Color::WHITE, "HOME");
+      // Select (center)
+      it.filled_circle(cx, cy, 20, Color::WHITE);
       
-      it.rectangle(70, bottom_y, 50, 30, Color::WHITE);
-      it.printf(95, bottom_y + 15, id(font_small), TextAlign::CENTER, Color::WHITE, "BACK");
+      // Volume buttons (left side, always TV)
+      it.filled_rectangle(10, 210, 50, 40, Color(0x4C, 0xAF, 0x50));
+      it.rectangle(10, 210, 50, 40, Color::WHITE);
+      it.printf(35, 230, id(font_medium), TextAlign::CENTER, Color::WHITE, "VOL+");
       
-      it.rectangle(130, bottom_y, 50, 30, Color::WHITE);
-      it.printf(155, bottom_y + 15, id(font_small), TextAlign::CENTER, Color::WHITE, "PLAY");
+      it.filled_rectangle(10, 260, 50, 40, Color(0x4C, 0xAF, 0x50));
+      it.rectangle(10, 260, 50, 40, Color::WHITE);
+      it.printf(35, 280, id(font_medium), TextAlign::CENTER, Color::WHITE, "VOL-");
       
-      it.rectangle(190, bottom_y, 40, 30, Color::WHITE);
-      it.printf(210, bottom_y + 15, id(font_small), TextAlign::CENTER, Color::WHITE, "PWR");
+      // Device toggle button
+      it.filled_rectangle(70, 220, 100, 35, id(use_stick) ? Color(0x9C, 0x27, 0xB0) : Color(0x1E, 0x90, 0xFF));
+      it.rectangle(70, 220, 100, 35, Color::WHITE);
+      it.printf(120, 238, id(font_small), TextAlign::CENTER, Color::WHITE, id(use_stick) ? "SWITCH TO TV" : "SWITCH TO STICK");
+      
+      // Right side buttons
+      it.filled_rectangle(180, 210, 50, 40, Color(0xF4, 0x43, 0x36));
+      it.rectangle(180, 210, 50, 40, Color::WHITE);
+      it.printf(205, 230, id(font_medium), TextAlign::CENTER, Color::WHITE, "PWR");
+      
+      it.filled_rectangle(180, 260, 50, 40, Color(0x21, 0x96, 0xF3));
+      it.rectangle(180, 260, 50, 40, Color::WHITE);
+      it.printf(205, 280, id(font_medium), TextAlign::CENTER, Color::WHITE, "OK");
+      
+      // Bottom row
+      it.rectangle(10, 310, 70, 35, Color::WHITE);
+      it.printf(45, 328, id(font_small), TextAlign::CENTER, Color::WHITE, "HOME");
+      
+      it.rectangle(85, 310, 70, 35, Color::WHITE);
+      it.printf(120, 328, id(font_small), TextAlign::CENTER, Color::WHITE, "BACK");
+      
+      it.rectangle(160, 310, 70, 35, Color::WHITE);
+      it.printf(195, 328, id(font_small), TextAlign::CENTER, Color::WHITE, "PLAY");
 
 # XPT2046 Touchscreen
 touchscreen:
@@ -139,41 +156,59 @@ touchscreen:
           int x = touch.x;
           int y = touch.y;
           
-          // Up button (90, 80) to (150, 140)
-          if (x >= 90 && x <= 150 && y >= 80 && y <= 140) {
+          // D-pad area (centered at 120, 130)
+          // Up: y 70-125
+          if (x >= 92 && x <= 148 && y >= 70 && y <= 125) {
             id(roku_up).press();
           }
-          // Down button (90, 200) to (150, 260)
-          else if (x >= 90 && x <= 150 && y >= 200 && y <= 260) {
+          // Down: y 135-190
+          else if (x >= 92 && x <= 148 && y >= 135 && y <= 190) {
             id(roku_down).press();
           }
-          // Left button (30, 140) to (90, 200)
-          else if (x >= 30 && x <= 90 && y >= 140 && y <= 200) {
+          // Left: x 35-90
+          else if (x >= 35 && x <= 90 && y >= 102 && y <= 157) {
             id(roku_left).press();
           }
-          // Right button (150, 140) to (210, 200)
-          else if (x >= 150 && x <= 210 && y >= 140 && y <= 200) {
+          // Right: x 150-205
+          else if (x >= 150 && x <= 205 && y >= 102 && y <= 157) {
             id(roku_right).press();
           }
-          // Select button (90, 140) to (150, 200)
-          else if (x >= 90 && x <= 150 && y >= 140 && y <= 200) {
+          // Select (center)
+          else if (x >= 100 && x <= 140 && y >= 110 && y <= 150) {
             id(roku_select).press();
           }
-          // Home button (10, 280) to (60, 310)
-          else if (x >= 10 && x <= 60 && y >= 280 && y <= 310) {
+          // VOL+ (10, 210) to (60, 250) - always TV
+          else if (x >= 10 && x <= 60 && y >= 210 && y <= 250) {
+            id(tv_vol_up).press();
+          }
+          // VOL- (10, 260) to (60, 300) - always TV
+          else if (x >= 10 && x <= 60 && y >= 260 && y <= 300) {
+            id(tv_vol_down).press();
+          }
+          // Device toggle (70, 220) to (170, 255)
+          else if (x >= 70 && x <= 170 && y >= 220 && y <= 255) {
+            id(use_stick) = !id(use_stick);
+            id(main_display).update();
+          }
+          // Power (180, 210) to (230, 250) - always TV
+          else if (x >= 180 && x <= 230 && y >= 210 && y <= 250) {
+            id(tv_power).press();
+          }
+          // OK button (180, 260) to (230, 300)
+          else if (x >= 180 && x <= 230 && y >= 260 && y <= 300) {
+            id(roku_select).press();
+          }
+          // Home (10, 310) to (80, 345)
+          else if (x >= 10 && x <= 80 && y >= 310 && y <= 345) {
             id(roku_home).press();
           }
-          // Back button (70, 280) to (120, 310)
-          else if (x >= 70 && x <= 120 && y >= 280 && y <= 310) {
+          // Back (85, 310) to (155, 345)
+          else if (x >= 85 && x <= 155 && y >= 310 && y <= 345) {
             id(roku_back).press();
           }
-          // Play button (130, 280) to (180, 310)
-          else if (x >= 130 && x <= 180 && y >= 280 && y <= 310) {
+          // Play (160, 310) to (230, 345)
+          else if (x >= 160 && x <= 230 && y >= 310 && y <= 345) {
             id(roku_play).press();
-          }
-          // Power button (190, 280) to (230, 310)
-          else if (x >= 190 && x <= 230 && y >= 280 && y <= 310) {
-            id(roku_power).press();
           }
 
 # Fonts
@@ -188,98 +223,101 @@ font:
     file: "gfonts://Roboto"
     size: 24
 
-# HTTP Request component for Roku ECP API
+# HTTP Request component
 http_request:
   useragent: "ESPHome/RokuRemote"
   timeout: 5s
 
-# Roku button templates
+# Navigation buttons (to selected device)
 button:
-  - id: roku_home
-    platform: template
-    name: "Roku Home"
-    on_press:
-      - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/Home"
-  
-  - id: roku_back
-    platform: template
-    name: "Roku Back"
-    on_press:
-      - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/Back"
-  
   - id: roku_up
     platform: template
     name: "Roku Up"
     on_press:
       - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/Up"
+          url: !lambda |-
+            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Up" : "http://${tv_ip}:8060/keypress/Up";
   
   - id: roku_down
     platform: template
     name: "Roku Down"
     on_press:
       - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/Down"
+          url: !lambda |-
+            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Down" : "http://${tv_ip}:8060/keypress/Down";
   
   - id: roku_left
     platform: template
     name: "Roku Left"
     on_press:
       - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/Left"
+          url: !lambda |-
+            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Left" : "http://${tv_ip}:8060/keypress/Left";
   
   - id: roku_right
     platform: template
     name: "Roku Right"
     on_press:
       - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/Right"
+          url: !lambda |-
+            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Right" : "http://${tv_ip}:8060/keypress/Right";
   
   - id: roku_select
     platform: template
     name: "Roku Select"
     on_press:
       - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/Select"
+          url: !lambda |-
+            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Select" : "http://${tv_ip}:8060/keypress/Select";
+  
+  - id: roku_home
+    platform: template
+    name: "Roku Home"
+    on_press:
+      - http_request.post:
+          url: !lambda |-
+            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Home" : "http://${tv_ip}:8060/keypress/Home";
+  
+  - id: roku_back
+    platform: template
+    name: "Roku Back"
+    on_press:
+      - http_request.post:
+          url: !lambda |-
+            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Back" : "http://${tv_ip}:8060/keypress/Back";
   
   - id: roku_play
     platform: template
     name: "Roku Play/Pause"
     on_press:
       - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/Play"
-  
-  - id: roku_power
-    platform: template
-    name: "Roku Power"
-    on_press:
-      - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/PowerOff"
+          url: !lambda |-
+            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Play" : "http://${tv_ip}:8060/keypress/Play";
 
-  - id: roku_volume_up
+# TV-only buttons (always send to TV)
+  - id: tv_power
     platform: template
-    name: "Roku Volume Up"
+    name: "TV Power"
     on_press:
       - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/VolumeUp"
+          url: "http://${tv_ip}:8060/keypress/Power"
   
-  - id: roku_volume_down
+  - id: tv_vol_up
     platform: template
-    name: "Roku Volume Down"
+    name: "TV Volume Up"
     on_press:
       - http_request.post:
-          url: "http://${roku_ip}:8060/keypress/VolumeDown"
+          url: "http://${tv_ip}:8060/keypress/VolumeUp"
+  
+  - id: tv_vol_down
+    platform: template
+    name: "TV Volume Down"
+    on_press:
+      - http_request.post:
+          url: "http://${tv_ip}:8060/keypress/VolumeDown"
 
-# Status LED (optional - built-in on most dev boards)
+# Status LED
 status_led:
   pin:
     number: GPIO48
     inverted: true
-
-# Deep sleep on idle (optional - saves battery)
-# deep_sleep:
-#   id: deep_sleep_1
-#   sleep_duration: 30s
-#   wakeup_pin: GPIO0
