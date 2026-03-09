@@ -1,12 +1,16 @@
 # ESP32-S3 Gen 1 - Roku Remote with 2.8" TFT
 # Hardware: ESP32-S3 WROOM + 2.8" TFT LCD (240x320 ILI9341) + XPT2046 touchscreen
 # Repo: /home/user/.openclaw/workspace/roku-remote
+# 
+# Control mapping:
+# - D-pad, Select, Home, Back, Play, Apps → Roku Stick (192.168.4.179)
+# - Power, Volume → TV (192.168.4.253)
 
 substitutions:
   name: esp32-s3-gen-1
   friendly_name: "ESP32_S3_Gen_1"
-  tv_ip: "192.168.4.253"      # Living Room TV (TCL)
-  stick_ip: "192.168.4.179"   # Living Room Stick
+  tv_ip: "192.168.4.253"      # Living Room TV (TCL) - Power & Volume only
+  stick_ip: "192.168.4.179"   # Living Room Stick - All navigation & apps
 
 esphome:
   name: ${name}
@@ -45,13 +49,6 @@ spi:
     mosi_pin: GPIO7
     miso_pin: GPIO8
 
-# Global for device selection (false = TV, true = Stick)
-globals:
-  - id: use_stick
-    type: bool
-    restore_value: false
-    initial_value: "false"
-
 # ILI9341 2.8" Display (240x320)
 display:
   - platform: ili9xxx
@@ -71,14 +68,13 @@ display:
       it.fill(Color::BLACK);
 
       // ---- Header ----
-      auto header_color = id(use_stick) ? Color(0x9C, 0x27, 0xB0) : Color(0x1E, 0x90, 0xFF);
-      it.filled_rectangle(0, 0, 240, 28, header_color);
+      it.filled_rectangle(0, 0, 240, 28, Color(0x1E, 0x90, 0xFF));
       it.printf(120, 14, id(font_medium), Color::WHITE, TextAlign::CENTER, "Roku Remote");
 
       // ---- D-pad (larger, centered at y=105) ----
       const int cx = 120;
       const int cy = 105;
-      const int BTN = 60;  // larger buttons
+      const int BTN = 60;
       const int GAP = 5;
 
       // Up
@@ -97,37 +93,28 @@ display:
       it.rectangle(cx + GAP, cy - BTN/2, BTN, BTN, Color::WHITE);
       it.printf(cx + BTN/2 + GAP, cy, id(font_large), Color::WHITE, TextAlign::CENTER, ">");
 
-      // Select (center circle)
+      // Select (center circle) - this is the OK button
       it.filled_circle(cx, cy, 22, Color::WHITE);
 
-      // ---- Row 2: VOL+, SWITCH, PWR (y=178..208) ----
-      it.filled_rectangle(5, 178, 52, 28, Color(0x4C, 0xAF, 0x50));
-      it.rectangle(5, 178, 52, 28, Color::WHITE);
-      it.printf(31, 192, id(font_small), Color::WHITE, TextAlign::CENTER, "VOL+");
+      // ---- Row 2: VOL+, PWR (y=178..208) ----
+      it.filled_rectangle(5, 178, 70, 28, Color(0x4C, 0xAF, 0x50));
+      it.rectangle(5, 178, 70, 28, Color::WHITE);
+      it.printf(40, 192, id(font_small), Color::WHITE, TextAlign::CENTER, "VOL+");
 
-      it.filled_rectangle(62, 178, 116, 28, id(use_stick) ? Color(0x9C, 0x27, 0xB0) : Color(0x1E, 0x90, 0xFF));
-      it.rectangle(62, 178, 116, 28, Color::WHITE);
-      it.printf(120, 192, id(font_small), Color::WHITE, TextAlign::CENTER,
-                id(use_stick) ? "SWITCH->TV" : "SWITCH->STICK");
+      // Power (red) - TV only
+      it.filled_rectangle(165, 178, 70, 28, Color(0xF4, 0x43, 0x36));
+      it.rectangle(165, 178, 70, 28, Color::WHITE);
+      it.printf(200, 192, id(font_small), Color::WHITE, TextAlign::CENTER, "PWR");
 
-      it.filled_rectangle(183, 178, 52, 28, Color(0xF4, 0x43, 0x36));
-      it.rectangle(183, 178, 52, 28, Color::WHITE);
-      it.printf(209, 192, id(font_small), Color::WHITE, TextAlign::CENTER, "PWR");
+      // ---- Row 3: VOL-, HOME (y=212..240) ----
+      it.filled_rectangle(5, 212, 70, 28, Color(0x4C, 0xAF, 0x50));
+      it.rectangle(5, 212, 70, 28, Color::WHITE);
+      it.printf(40, 226, id(font_small), Color::WHITE, TextAlign::CENTER, "VOL-");
 
-      // ---- Row 3: VOL-, OK (y=212..240) ----
-      it.filled_rectangle(5, 212, 52, 28, Color(0x4C, 0xAF, 0x50));
-      it.rectangle(5, 212, 52, 28, Color::WHITE);
-      it.printf(31, 226, id(font_small), Color::WHITE, TextAlign::CENTER, "VOL-");
-
-      // OK button spans middle area
-      it.filled_rectangle(62, 212, 116, 28, Color(0x21, 0x96, 0xF3));
-      it.rectangle(62, 212, 116, 28, Color::WHITE);
-      it.printf(120, 226, id(font_small), Color::WHITE, TextAlign::CENTER, "OK");
-
-      // HOME/BACK/PLAY on right
-      it.filled_rectangle(183, 212, 52, 28, Color(0x60, 0x7D, 0x8B));
-      it.rectangle(183, 212, 52, 28, Color::WHITE);
-      it.printf(209, 226, id(font_small), Color::WHITE, TextAlign::CENTER, "HOME");
+      // HOME - Stick
+      it.filled_rectangle(165, 212, 70, 28, Color(0x60, 0x7D, 0x8B));
+      it.rectangle(165, 212, 70, 28, Color::WHITE);
+      it.printf(200, 226, id(font_small), Color::WHITE, TextAlign::CENTER, "HOME");
 
       // ---- Row 4: App buttons (y=248..280) ----
       // Netflix (red)
@@ -155,7 +142,7 @@ display:
       it.rectangle(196, 248, 40, 32, Color::WHITE);
       it.printf(216, 264, id(font_tiny), Color::WHITE, TextAlign::CENTER, "D+");
 
-      // ---- Row 5: BACK, PLAY (y=286..318) ----
+      // ---- Row 5: BACK, PLAY, MENU (y=286..318) ----
       it.rectangle(4, 286, 76, 30, Color::WHITE);
       it.printf(42, 301, id(font_small), Color::WHITE, TextAlign::CENTER, "BACK");
 
@@ -186,13 +173,13 @@ touchscreen:
           int y = touch.y;
           ESP_LOGI("touch", "x=%d y=%d", x, y);
 
-          // ---- D-pad (larger) ----
+          // ---- D-pad (all go to Stick) ----
           const int cx = 120;
           const int cy = 105;
           const int BTN = 60;
           const int GAP = 5;
 
-          // Up: x=90..150, y=40..100
+          // Up
           if (x >= cx - BTN/2 - 5 && x <= cx + BTN/2 + 5 && y >= cy - BTN - GAP - 15 && y <= cy - GAP + 5) {
             id(roku_up).press();
           }
@@ -208,35 +195,32 @@ touchscreen:
           else if (x >= cx + GAP - 5 && x <= cx + BTN + GAP + 15 && y >= cy - BTN/2 - 5 && y <= cy + BTN/2 + 5) {
             id(roku_right).press();
           }
-          // Select (center)
+          // Select (center circle) - goes to Stick
           else if (x >= cx - 30 && x <= cx + 30 && y >= cy - 30 && y <= cy + 30) {
             id(roku_select).press();
           }
 
-          // ---- Row 2: VOL+, SWITCH, PWR (y=178..208) ----
-          else if (x >= 5 && x <= 57 && y >= 178 && y <= 208) {
+          // ---- Row 2: VOL+, PWR (y=178..208) ----
+          // VOL+ - TV only
+          else if (x >= 5 && x <= 75 && y >= 178 && y <= 208) {
             id(tv_vol_up).press();
           }
-          else if (x >= 62 && x <= 178 && y >= 178 && y <= 208) {
-            id(use_stick) = !id(use_stick);
-            id(main_display).update();
-          }
-          else if (x >= 183 && x <= 235 && y >= 178 && y <= 208) {
+          // PWR - TV only
+          else if (x >= 165 && x <= 235 && y >= 178 && y <= 208) {
             id(tv_power).press();
           }
 
-          // ---- Row 3: VOL-, OK, HOME (y=212..240) ----
-          else if (x >= 5 && x <= 57 && y >= 212 && y <= 240) {
+          // ---- Row 3: VOL-, HOME (y=212..240) ----
+          // VOL- - TV only
+          else if (x >= 5 && x <= 75 && y >= 212 && y <= 240) {
             id(tv_vol_down).press();
           }
-          else if (x >= 62 && x <= 178 && y >= 212 && y <= 240) {
-            id(roku_select).press();
-          }
-          else if (x >= 183 && x <= 235 && y >= 212 && y <= 240) {
+          // HOME - Stick
+          else if (x >= 165 && x <= 235 && y >= 212 && y <= 240) {
             id(roku_home).press();
           }
 
-          // ---- Row 4: App buttons (y=248..280) ----
+          // ---- Row 4: App buttons (y=248..280) - all go to Stick ----
           else if (x >= 4 && x <= 48 && y >= 248 && y <= 280) {
             id(launch_netflix).press();
           }
@@ -253,7 +237,7 @@ touchscreen:
             id(launch_disney).press();
           }
 
-          // ---- Row 5: BACK, PLAY, MENU (y=286..318) ----
+          // ---- Row 5: BACK, PLAY, MENU (y=286..318) - all go to Stick ----
           else if (x >= 4 && x <= 80 && y >= 286 && y <= 318) {
             id(roku_back).press();
           }
@@ -284,142 +268,125 @@ http_request:
   useragent: "ESPHome/RokuRemote"
   timeout: 5s
 
-# Navigation buttons (routed to selected device)
+# Navigation buttons - ALL go to Stick
 button:
   - id: roku_up
     platform: template
     name: "Roku Up"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Up" : "http://${tv_ip}:8060/keypress/Up";
+          url: "http://${stick_ip}:8060/keypress/Up";
 
   - id: roku_down
     platform: template
     name: "Roku Down"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Down" : "http://${tv_ip}:8060/keypress/Down";
+          url: "http://${stick_ip}:8060/keypress/Down";
 
   - id: roku_left
     platform: template
     name: "Roku Left"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Left" : "http://${tv_ip}:8060/keypress/Left";
+          url: "http://${stick_ip}:8060/keypress/Left";
 
   - id: roku_right
     platform: template
     name: "Roku Right"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Right" : "http://${tv_ip}:8060/keypress/Right";
+          url: "http://${stick_ip}:8060/keypress/Right";
 
   - id: roku_select
     platform: template
     name: "Roku Select"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Select" : "http://${tv_ip}:8060/keypress/Select";
+          url: "http://${stick_ip}:8060/keypress/Select";
 
   - id: roku_home
     platform: template
     name: "Roku Home"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Home" : "http://${tv_ip}:8060/keypress/Home";
+          url: "http://${stick_ip}:8060/keypress/Home";
 
   - id: roku_back
     platform: template
     name: "Roku Back"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Back" : "http://${tv_ip}:8060/keypress/Back";
+          url: "http://${stick_ip}:8060/keypress/Back";
 
   - id: roku_play
     platform: template
     name: "Roku Play"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Play" : "http://${tv_ip}:8060/keypress/Play";
+          url: "http://${stick_ip}:8060/keypress/Play";
 
   - id: roku_menu
     platform: template
     name: "Roku Menu"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/keypress/Info" : "http://${tv_ip}:8060/keypress/Info";
+          url: "http://${stick_ip}:8060/keypress/Info";
 
-  # TV-only buttons
+  # TV-only buttons (Power & Volume)
   - id: tv_power
     platform: template
     name: "TV Power"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return "http://${tv_ip}:8060/keypress/Power";
+          url: "http://${tv_ip}:8060/keypress/Power";
 
   - id: tv_vol_up
     platform: template
     name: "TV Volume Up"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return "http://${tv_ip}:8060/keypress/VolumeUp";
+          url: "http://${tv_ip}:8060/keypress/VolumeUp";
 
   - id: tv_vol_down
     platform: template
     name: "TV Volume Down"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return "http://${tv_ip}:8060/keypress/VolumeDown";
+          url: "http://${tv_ip}:8060/keypress/VolumeDown";
 
-  # App launch buttons
+  # App launch buttons - ALL go to Stick
   - id: launch_netflix
     platform: template
     name: "Launch Netflix"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/launch/12" : "http://${tv_ip}:8060/launch/12";
+          url: "http://${stick_ip}:8060/launch/12";
 
   - id: launch_youtube
     platform: template
     name: "Launch YouTube"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/launch/837" : "http://${tv_ip}:8060/launch/837";
+          url: "http://${stick_ip}:8060/launch/837";
 
   - id: launch_yttv
     platform: template
     name: "Launch YouTube TV"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/launch/195316" : "http://${tv_ip}:8060/launch/195316";
+          url: "http://${stick_ip}:8060/launch/195316";
 
   - id: launch_hulu
     platform: template
     name: "Launch Hulu"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/launch/2285" : "http://${tv_ip}:8060/launch/2285";
+          url: "http://${stick_ip}:8060/launch/2285";
 
   - id: launch_disney
     platform: template
     name: "Launch Disney+"
     on_press:
       - http_request.post:
-          url: !lambda |-
-            return id(use_stick) ? "http://${stick_ip}:8060/launch/291097" : "http://${tv_ip}:8060/launch/291097";
+          url: "http://${stick_ip}:8060/launch/291097";
