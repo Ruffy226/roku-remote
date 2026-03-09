@@ -9,8 +9,8 @@
 substitutions:
   name: esp32-s3-gen-1
   friendly_name: "ESP32_S3_Gen_1"
-  tv_ip: "192.168.4.253"      # Living Room TV (TCL) - Power & Volume only
-  stick_ip: "192.168.4.179"   # Living Room Stick - All navigation & apps
+  tv_ip: "192.168.4.253"
+  stick_ip: "192.168.4.179"
 
 esphome:
   name: ${name}
@@ -42,14 +42,12 @@ wifi:
     subnet: 255.255.252.0
     dns1: 192.168.4.222
 
-# SPI bus for display and touch
 spi:
   - id: display_spi
     clk_pin: GPIO18
     mosi_pin: GPIO7
     miso_pin: GPIO8
 
-# ILI9341 2.8" Display (240x320)
 display:
   - platform: ili9xxx
     id: main_display
@@ -64,85 +62,66 @@ display:
     auto_clear_enabled: false
     
     lambda: |-
-      // Clear screen every redraw to prevent ghosting
       it.fill(Color::BLACK);
 
-      // ---- Header ----
       it.filled_rectangle(0, 0, 240, 28, Color(0x1E, 0x90, 0xFF));
       it.printf(120, 14, id(font_medium), Color::WHITE, TextAlign::CENTER, "Roku Remote");
 
-      // ---- D-pad (larger, centered at y=105) ----
       const int cx = 120;
-      const int cy = 105;
-      const int BTN = 60;
-      const int GAP = 5;
+      const int cy = 115;
+      const int BTN = 65;
+      const int GAP = 4;
 
-      // Up
       it.rectangle(cx - BTN/2, cy - BTN - GAP, BTN, BTN, Color::WHITE);
       it.printf(cx, cy - BTN/2 - GAP, id(font_large), Color::WHITE, TextAlign::CENTER, "^");
 
-      // Down
       it.rectangle(cx - BTN/2, cy + GAP, BTN, BTN, Color::WHITE);
       it.printf(cx, cy + BTN/2 + GAP, id(font_large), Color::WHITE, TextAlign::CENTER, "v");
 
-      // Left
       it.rectangle(cx - BTN - GAP, cy - BTN/2, BTN, BTN, Color::WHITE);
       it.printf(cx - BTN/2 - GAP, cy, id(font_large), Color::WHITE, TextAlign::CENTER, "<");
 
-      // Right
       it.rectangle(cx + GAP, cy - BTN/2, BTN, BTN, Color::WHITE);
       it.printf(cx + BTN/2 + GAP, cy, id(font_large), Color::WHITE, TextAlign::CENTER, ">");
 
-      // Select (center circle) - this is the OK button
-      it.filled_circle(cx, cy, 22, Color::WHITE);
+      it.filled_circle(cx, cy + 25, 24, Color::WHITE);
 
-      // ---- Row 2: VOL+, PWR (y=178..208) ----
       it.filled_rectangle(5, 178, 70, 28, Color(0x4C, 0xAF, 0x50));
       it.rectangle(5, 178, 70, 28, Color::WHITE);
       it.printf(40, 192, id(font_small), Color::WHITE, TextAlign::CENTER, "VOL+");
 
-      // Power (red) - TV only
       it.filled_rectangle(165, 178, 70, 28, Color(0xF4, 0x43, 0x36));
       it.rectangle(165, 178, 70, 28, Color::WHITE);
       it.printf(200, 192, id(font_small), Color::WHITE, TextAlign::CENTER, "PWR");
 
-      // ---- Row 3: VOL-, HOME (y=212..240) ----
       it.filled_rectangle(5, 212, 70, 28, Color(0x4C, 0xAF, 0x50));
       it.rectangle(5, 212, 70, 28, Color::WHITE);
       it.printf(40, 226, id(font_small), Color::WHITE, TextAlign::CENTER, "VOL-");
 
-      // HOME - Stick
       it.filled_rectangle(165, 212, 70, 28, Color(0x60, 0x7D, 0x8B));
       it.rectangle(165, 212, 70, 28, Color::WHITE);
       it.printf(200, 226, id(font_small), Color::WHITE, TextAlign::CENTER, "HOME");
 
-      // ---- Row 4: App buttons (y=248..280) ----
-      // Netflix (red)
       it.filled_rectangle(4, 248, 44, 32, Color(0xE5, 0x00, 0x14));
       it.rectangle(4, 248, 44, 32, Color::WHITE);
       it.printf(26, 264, id(font_tiny), Color::WHITE, TextAlign::CENTER, "NET");
 
-      // YouTube (red)
       it.filled_rectangle(52, 248, 44, 32, Color(0xFF, 0x00, 0x00));
       it.rectangle(52, 248, 44, 32, Color::WHITE);
       it.printf(74, 264, id(font_tiny), Color::WHITE, TextAlign::CENTER, "YT");
 
-      // YouTube TV (dark red)
       it.filled_rectangle(100, 248, 44, 32, Color(0xCC, 0x00, 0x00));
       it.rectangle(100, 248, 44, 32, Color::WHITE);
       it.printf(122, 264, id(font_tiny), Color::WHITE, TextAlign::CENTER, "YTTV");
 
-      // Hulu (green)
       it.filled_rectangle(148, 248, 44, 32, Color(0x1C, 0xE7, 0x8D));
       it.rectangle(148, 248, 44, 32, Color::WHITE);
       it.printf(170, 264, id(font_tiny), Color::WHITE, TextAlign::CENTER, "HULU");
 
-      // Disney+ (blue)
       it.filled_rectangle(196, 248, 40, 32, Color(0x11, 0x3C, 0xCF));
       it.rectangle(196, 248, 40, 32, Color::WHITE);
       it.printf(216, 264, id(font_tiny), Color::WHITE, TextAlign::CENTER, "D+");
 
-      // ---- Row 5: BACK, PLAY, MENU (y=286..318) ----
       it.rectangle(4, 286, 76, 30, Color::WHITE);
       it.printf(42, 301, id(font_small), Color::WHITE, TextAlign::CENTER, "BACK");
 
@@ -152,7 +131,6 @@ display:
       it.rectangle(160, 286, 76, 30, Color::WHITE);
       it.printf(198, 301, id(font_small), Color::WHITE, TextAlign::CENTER, "MENU");
 
-# XPT2046 Touchscreen
 touchscreen:
   - platform: xpt2046
     spi_id: display_spi
@@ -173,54 +151,33 @@ touchscreen:
           int y = touch.y;
           ESP_LOGI("touch", "x=%d y=%d", x, y);
 
-          // ---- D-pad (all go to Stick) ----
-          const int cx = 120;
-          const int cy = 105;
-          const int BTN = 60;
-          const int GAP = 5;
-
-          // Up
-          if (x >= cx - BTN/2 - 5 && x <= cx + BTN/2 + 5 && y >= cy - BTN - GAP - 15 && y <= cy - GAP + 5) {
+          if (x >= 87 && x <= 153 && y >= 46 && y <= 111) {
             id(roku_up).press();
           }
-          // Down
-          else if (x >= cx - BTN/2 - 5 && x <= cx + BTN/2 + 5 && y >= cy + GAP - 5 && y <= cy + BTN + GAP + 15) {
+          else if (x >= 87 && x <= 153 && y >= 119 && y <= 184) {
             id(roku_down).press();
           }
-          // Left
-          else if (x >= cx - BTN - GAP - 15 && x <= cx - GAP + 5 && y >= cy - BTN/2 - 5 && y <= cy + BTN/2 + 5) {
+          else if (x >= 51 && x <= 116 && y >= 82 && y <= 148) {
             id(roku_left).press();
           }
-          // Right
-          else if (x >= cx + GAP - 5 && x <= cx + BTN + GAP + 15 && y >= cy - BTN/2 - 5 && y <= cy + BTN/2 + 5) {
+          else if (x >= 124 && x <= 189 && y >= 82 && y <= 148) {
             id(roku_right).press();
           }
-          // Select (center circle) - goes to Stick
-          else if (x >= cx - 30 && x <= cx + 30 && y >= cy - 30 && y <= cy + 30) {
+          else if (x >= 96 && x <= 144 && y >= 116 && y <= 164) {
             id(roku_select).press();
           }
-
-          // ---- Row 2: VOL+, PWR (y=178..208) ----
-          // VOL+ - TV only
           else if (x >= 5 && x <= 75 && y >= 178 && y <= 208) {
             id(tv_vol_up).press();
           }
-          // PWR - TV only
           else if (x >= 165 && x <= 235 && y >= 178 && y <= 208) {
             id(tv_power).press();
           }
-
-          // ---- Row 3: VOL-, HOME (y=212..240) ----
-          // VOL- - TV only
           else if (x >= 5 && x <= 75 && y >= 212 && y <= 240) {
             id(tv_vol_down).press();
           }
-          // HOME - Stick
           else if (x >= 165 && x <= 235 && y >= 212 && y <= 240) {
             id(roku_home).press();
           }
-
-          // ---- Row 4: App buttons (y=248..280) - all go to Stick ----
           else if (x >= 4 && x <= 48 && y >= 248 && y <= 280) {
             id(launch_netflix).press();
           }
@@ -236,8 +193,6 @@ touchscreen:
           else if (x >= 196 && x <= 236 && y >= 248 && y <= 280) {
             id(launch_disney).press();
           }
-
-          // ---- Row 5: BACK, PLAY, MENU (y=286..318) - all go to Stick ----
           else if (x >= 4 && x <= 80 && y >= 286 && y <= 318) {
             id(roku_back).press();
           }
@@ -248,7 +203,6 @@ touchscreen:
             id(roku_menu).press();
           }
 
-# Fonts
 font:
   - id: font_tiny
     file: "gfonts://Roboto"
@@ -263,12 +217,10 @@ font:
     file: "gfonts://Roboto"
     size: 24
 
-# HTTP Request component
 http_request:
   useragent: "ESPHome/RokuRemote"
   timeout: 5s
 
-# Navigation buttons - ALL go to Stick
 button:
   - id: roku_up
     platform: template
@@ -333,7 +285,6 @@ button:
       - http_request.post:
           url: "http://${stick_ip}:8060/keypress/Info";
 
-  # TV-only buttons (Power & Volume)
   - id: tv_power
     platform: template
     name: "TV Power"
@@ -355,7 +306,6 @@ button:
       - http_request.post:
           url: "http://${tv_ip}:8060/keypress/VolumeDown";
 
-  # App launch buttons - ALL go to Stick
   - id: launch_netflix
     platform: template
     name: "Launch Netflix"
